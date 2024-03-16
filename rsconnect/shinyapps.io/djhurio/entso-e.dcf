@@ -1,0 +1,13 @@
+name: entso-e
+title: entso-e
+username: djhurio
+account: djhurio
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 11508701
+bundleId: 8380376
+url: https://djhurio.shinyapps.io/entso-e/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .Rprofile|data.R|xml_data.xml
