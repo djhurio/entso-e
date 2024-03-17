@@ -42,3 +42,25 @@ schedule <- dcast.data.table(
   )
 
 schedule |> gtsave(filename = "schedule.html")
+
+
+schedule.price <- dcast.data.table(
+  data = dat_agg,
+  formula = time ~ weekday,
+  value.var = "price"
+) |>
+  gt() |>
+  sub_missing(missing_text = "") |>
+  fmt_number(decimals = 0) |>
+  cols_width(
+    time ~ px(60),
+    everything() ~ px(40)
+  ) |>
+  data_color(
+    columns = matches("[0-9]"),
+    target_columns = matches("[0-9]"),
+    palette = "Reds"
+  )
+schedule.price
+
+schedule.price |> gtsave(filename = "schedule.price.html")
