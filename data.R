@@ -74,7 +74,7 @@ schedule.price <- dcast.data.table(
 ) |>
   gt() |>
   sub_missing(missing_text = "") |>
-  fmt_number(decimals = 0) |>
+  fmt_number(decimals = 1) |>
   cols_width(
     time ~ px(60),
     everything() ~ px(40)
