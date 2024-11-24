@@ -45,27 +45,41 @@ get_prices_xml <- function(
   
 }
 
-convert_prices_dt <- function(xml_data, tzone = "EET") {
-  
-  # Since the XML has a default namespace,
-  # assign a prefix to it for use in XPath queries
+# Function to extract prices from XML data
+extract_prices <- function(xml_data, tzone = "EET") {
+  # Extract and rename the default namespace to "def"
   ns <- xml2::xml_ns_rename(xml2::xml_ns(xml_data), d1 = "def")
   
-  # Extract all Periods
-  Periods <- xml2::xml_find_all(xml_data, ".//def:Period", ns = ns)
+  # Check if the renamed namespace exists
+  if (is.null(ns[["def"]])) {
+    stop("No default namespace found in the XML file.")  # Fail if no namespace is found
+  }
   
-  datetime <- xml2::xml_find_all(Periods, ".//def:start", ns = ns) |>
-    xml2::xml_text() |>
-    as.POSIXct(tz = "UTC", format = "%Y-%m-%dT%H:%M") |>
-    lubridate::with_tz(tzone = tzone) |>
-    rep(each = 24) + rep(0:23 * 3600, times = length(Periods))
-  
-  price <- xml2::xml_find_all(Periods, ".//def:price.amount", ns = ns) |>
-    xml2::xml_double()
-  
-  # Combine into a data.frame
-  return(
-    data.frame(datetime, price)
+  # Iterate over TimeSeries nodes
+  data <- data.table::rbindlist(
+    purrr::map(xml2::xml_find_all(xml_data, ".//def:TimeSeries", ns = ns), function(time_series) {
+      # Iterate over Period nodes within the current TimeSeries
+      purrr::map_dfr(xml2::xml_find_all(time_series, ".//def:Period", ns = ns), function(period) {
+        # Extract the start time for the period
+        start_time <- xml2::xml_find_first(period, ".//def:start", ns = ns) %>% xml2::xml_text()
+        start_time <- as.POSIXct(start_time, format = "%Y-%m-%dT%H:%MZ", tz = "UTC")
+        start_time <- format(start_time, tz = tzone, usetz = TRUE)
+        
+        # Iterate over Point nodes within the current Period
+        purrr::map_dfr(xml2::xml_find_all(period, ".//def:Point", ns = ns), function(point) {
+          # Extract position and price
+          position <- xml2::xml_find_first(point, ".//def:position", ns = ns) %>% xml2::xml_integer()
+          price <- xml2::xml_find_first(point, ".//def:price.amount", ns = ns) %>% xml2::xml_double()
+          
+          # Calculate the datetime for the current point
+          datetime <- as.POSIXct(start_time) + (position - 1) * 3600
+          
+          # Return a single-row data.table
+          data.table::data.table(datetime = datetime, price = price)
+        })
+      })
+    })
   )
   
+  return(data)
 }

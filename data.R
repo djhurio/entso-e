@@ -8,12 +8,42 @@ library(lubridate)
 
 source("functions.R")
 
-xml_data <- get_prices_xml(
-  dateStart = Sys.Date() %m-% years(1),
-  dateEnd = Sys.Date()
+
+# It looks the API returns data about 100 days max
+# Get the prices for the last 12 months
+
+# Vector of the first days
+start_dates <- seq(
+  # from = floor_date(Sys.Date() - months(1), "month"),
+  from = Sys.Date() - months(1) + days(1),
+  by = "-1 month",
+  length.out = 12
+) |> sort()
+
+# Vector of the last days
+end_dates <- start_dates + months(1) - days(1)
+
+data.table(start_dates, end_dates)
+
+# xml_data <- get_prices_xml(
+#   dateStart = Sys.Date(),
+#   dateEnd = Sys.Date()
+# )
+
+xml_data <- purrr::map2(
+  .x = start_dates,
+  .y = end_dates,
+  .f = \(x, y) get_prices_xml(dateStart = x, dateEnd = y)
 )
 
-dat <- convert_prices_dt(xml_data) |> setDT(key = "datetime")
+# dat <- convert_prices_dt(xml_data) |> setDT(key = "datetime")
+# dat <- extract_prices(xml_data) |> setkey(datetime)
+dat <- purrr::map(.x = xml_data, .f = extract_prices) |>
+  rbindlist() |> setkey(datetime)
+
+# Original price is € / MWh
+# Convert price to cents / kWh
+dat[, price_c_kWh := price / 10]
 
 dat[, date := as.Date(format(datetime, format = "%Y-%m-%d"))]
 dat[, time := format(datetime, format = "%H:%M")]
@@ -22,7 +52,7 @@ dat[, weekday := lubridate::wday(date, week_start = 1)]
 
 
 # By weekdays
-dat_agg_wdays <- dat[, .(price = mean(price * 1.21 / 10)),
+dat_agg_wdays <- dat[, .(price = mean(price_c_kWh)),
                      keyby = .(weekday, time)]
 
 setorder(dat_agg_wdays, weekday, price)
@@ -33,7 +63,7 @@ dat_agg_wdays[, .N, keyby = .(hi)]
 
 
 # All days
-dat_agg_all <- dat[, .(price = mean(price * 1.21 / 10)),
+dat_agg_all <- dat[, .(price = mean(price_c_kWh)),
                    keyby = .(time)]
 dat_agg_all[, weekday := 0L]
 
@@ -65,6 +95,16 @@ schedule <- dcast.data.table(
 schedule
 
 schedule |> gtsave(filename = "schedule.html")
+
+# Optimal time slot
+dat_agg[order(price)]
+dat[weekday == 7L & time == "13:00", summary(price_c_kWh)]
+
+dat_summary <- dat[, as.list(summary(price_c_kWh)), keyby = .(weekday, time)]
+dat_summary[order(Mean)]   # Sunday 13:00 3.4
+dat_summary[order(Median)] # Sunday 14:00 3.7
+dat_summary[order(Max.)]   # Monday 04:00 5.4
+
 
 
 schedule.price <- dcast.data.table(
