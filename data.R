@@ -8,6 +8,8 @@ library(lubridate)
 
 source("functions.R")
 
+# Parameters
+hours_on <- 8L
 
 # It looks the API returns data about 100 days max
 # Get the prices for the last 12 months
@@ -50,6 +52,8 @@ dat[, time := format(datetime, format = "%H:%M")]
 
 dat[, weekday := lubridate::wday(date, week_start = 1)]
 
+dat[, workdays := weekday %in% 1:5]
+
 
 # By weekdays
 dat_agg_wdays <- dat[, .(price = mean(price_c_kWh)),
@@ -57,9 +61,30 @@ dat_agg_wdays <- dat[, .(price = mean(price_c_kWh)),
 
 setorder(dat_agg_wdays, weekday, price)
 
-dat_agg_wdays[, hi := factor(1:.N <= 12, c(TRUE, FALSE), c("on", "off")),
+dat_agg_wdays[, hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
               by = .(weekday)]
 dat_agg_wdays[, .N, keyby = .(hi)]
+
+
+# By workdays / weekends
+dat_agg_workdays <- dat[, .(price = mean(price_c_kWh)),
+                        keyby = .(workdays, time)]
+
+setorder(dat_agg_workdays, workdays, price)
+
+dat_agg_workdays[
+  ,
+  hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
+  by = .(workdays)
+]
+dat_agg_workdays[, .N, keyby = .(hi)]
+
+dat_agg_workdays[, weekday := ifelse(workdays, 15L, 67L)]
+dat_agg_workdays[, workdays := NULL]
+
+setorder(dat_agg_workdays, weekday, time)
+dat_agg_workdays
+
 
 
 # All days
@@ -69,7 +94,7 @@ dat_agg_all[, weekday := 0L]
 
 setorder(dat_agg_all, weekday, price)
 
-dat_agg_all[, hi := factor(1:.N <= 12, c(TRUE, FALSE), c("on", "off")),
+dat_agg_all[, hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
             by = .(weekday)]
 dat_agg_all[, .N, keyby = .(hi)]
 
@@ -78,7 +103,10 @@ dat_agg_all
 
 
 # Add
-dat_agg <- rbindlist(list(dat_agg_wdays, dat_agg_all), use.names = TRUE)
+dat_agg <- rbindlist(
+  l = list(dat_agg_wdays, dat_agg_all, dat_agg_workdays),
+  use.names = TRUE
+)
 
 schedule <- dcast.data.table(
   data = dat_agg,
@@ -134,3 +162,14 @@ dat_agg_all[, mean(price), keyby = .(hi)]
 
 dat_agg_all[, 1 - mean(price[hi == "on"]) / mean(price)]
 dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
+
+
+
+# Save to XLSX
+openxlsx2::write_xlsx(
+  x = list(
+    Schedule_12h = schedule,
+    Prices_mean = schedule.price
+  ),
+  file = "schedule.xlsx"
+)
