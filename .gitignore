@@ -5,4 +5,4 @@
 
 .Renviron
 *.html
-*.xlsx
+*.xlsx*

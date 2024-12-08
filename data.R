@@ -6,10 +6,12 @@ library(data.table)
 library(gt)
 library(lubridate)
 
+options("openxlsx2.numFmt" = "0.0")
+
 source("functions.R")
 
 # Parameters
-hours_on <- 8L
+hours_on <- 24 * 2/3
 
 # It looks the API returns data about 100 days max
 # Get the prices for the last 12 months
@@ -112,20 +114,25 @@ schedule <- dcast.data.table(
   data = dat_agg,
   formula = time ~ weekday,
   value.var = "hi"
-) |>
-  gt() |>
+)
+
+schedule.gt <- gt(schedule) |>
   sub_missing(missing_text = "") |>
   data_color(
     columns = matches("[0-9]"),
     target_columns = matches("[0-9]"),
     palette = "Accent"
   )
-schedule
 
-schedule |> gtsave(filename = "schedule.html")
+schedule
+schedule.gt
 
 # Optimal time slot
 dat_agg[order(price)]
+
+cat("\n# Optimal time for water desinfection\n")
+dat_agg[time <= "05:00"][order(price)][1] |> print()
+
 dat[weekday == 7L & time == "13:00", summary(price_c_kWh)]
 
 dat_summary <- dat[, as.list(summary(price_c_kWh)), keyby = .(weekday, time)]
@@ -134,13 +141,36 @@ dat_summary[order(Median)] # Sunday 14:00 3.7
 dat_summary[order(Max.)]   # Monday 04:00 5.4
 
 
+# Schedule for water heating
+setorder(dat_agg, weekday, time)
+dat_agg
+# dat_agg[, .(1:.N == 1L, hi != shift(hi)), by = .(weekday)]
+dat_agg[, time_slot := cumsum(1:.N == 1L | hi != shift(hi)), by = .(weekday)]
+
+dat_agg[, time_next := shift(time, type = "lead")]
+dat_agg[.I == .N, time_next := "00:00"]
+
+cat("\n# Schedule for water heating\n")
+dat_agg[
+  hi == "on" & weekday > 7,
+  .(
+    period = paste(first(time), last(time_next), sep = " - "),
+    hours = .N
+  ),
+  keyby = .(weekday, hi, time_slot)
+] |> print()
+
+
+
+# Average prices
 
 schedule.price <- dcast.data.table(
   data = dat_agg,
   formula = time ~ weekday,
   value.var = "price"
-) |>
-  gt() |>
+)
+
+schedule.price.gt <- gt(schedule.price) |>
   sub_missing(missing_text = "") |>
   fmt_number(decimals = 1) |>
   cols_width(
@@ -152,9 +182,9 @@ schedule.price <- dcast.data.table(
     target_columns = matches("[0-9]"),
     palette = "Reds"
   )
-schedule.price
 
-schedule.price |> gtsave(filename = "schedule.price.html")
+schedule.price
+schedule.price.gt
 
 
 dat_agg_all[, mean(price)]
@@ -165,11 +195,15 @@ dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
 
 
 
-# Save to XLSX
+# Save
+
+schedule.gt |> gtsave(filename = "schedule.html")
+schedule.price.gt |> gtsave(filename = "schedule.price.html")
+
 openxlsx2::write_xlsx(
   x = list(
-    Schedule_12h = schedule,
-    Prices_mean = schedule.price
+    Schedule = schedule,
+    Price = schedule.price
   ),
   file = "schedule.xlsx"
 )
