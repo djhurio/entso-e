@@ -13,7 +13,6 @@ source("functions.R")
 
 # Vector of the first days
 start_dates <- seq(
-  # from = floor_date(Sys.Date() - months(1), "month"),
   from = Sys.Date() - months(1) + days(1),
   by = "-1 month",
   length.out = 12
@@ -24,19 +23,12 @@ end_dates <- start_dates + months(1) - days(1)
 
 data.table(start_dates, end_dates)
 
-# xml_data <- get_prices_xml(
-#   dateStart = Sys.Date(),
-#   dateEnd = Sys.Date()
-# )
-
 xml_data <- purrr::map2(
   .x = start_dates,
   .y = end_dates,
   .f = \(x, y) get_prices_xml(dateStart = x, dateEnd = y)
 )
 
-# dat <- convert_prices_dt(xml_data) |> setDT(key = "datetime")
-# dat <- extract_prices(xml_data) |> setkey(datetime)
 dat <- purrr::map(.x = xml_data, .f = extract_prices) |>
   rbindlist() |> setkey(datetime)
 
@@ -44,8 +36,8 @@ dat <- purrr::map(.x = xml_data, .f = extract_prices) |>
 # Convert price to cents / kWh
 dat[, price_c_kWh := price / 10]
 
-dat[, date := as.Date(format(datetime, format = "%Y-%m-%d"))]
-dat[, time := format(datetime, format = "%H:%M")]
+dat[, date := as.IDate(format(datetime, format = "%Y-%m-%d"))]
+dat[, time := as.ITime(format(datetime, format = "%H:%M"))]
 
 dat[, weekday := lubridate::wday(date, week_start = 1)]
 

@@ -133,10 +133,6 @@ schedule.price <- dcast.data.table(
 schedule.price.gt <- gt(schedule.price) |>
   sub_missing(missing_text = "") |>
   fmt_number(decimals = 1) |>
-  cols_width(
-    time ~ px(60),
-    everything() ~ px(40)
-  ) |>
   data_color(
     columns = matches("[0-9]"),
     target_columns = matches("[0-9]"),
