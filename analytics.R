@@ -154,8 +154,8 @@ dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
 
 
 # Save
-schedule.gt |> gtsave(filename = "schedule.pdf")
-schedule.price.gt |> gtsave(filename = "schedule.price.png")
+schedule.gt |> gtsave(filename = "schedule.html")
+schedule.price.gt |> gtsave(filename = "schedule.price.html")
 
 openxlsx2::write_xlsx(
   x = list(
