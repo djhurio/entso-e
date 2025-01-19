@@ -13,7 +13,8 @@ source("functions.R")
 
 # Vector of the first days
 start_dates <- seq(
-  from = Sys.Date() - months(1) + days(1),
+  # from = Sys.Date() - months(1) + days(1),
+  from = floor_date(Sys.Date() - months(1), unit = "month"),
   by = "-1 month",
   length.out = 12
 ) |> sort()

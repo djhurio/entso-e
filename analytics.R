@@ -91,14 +91,17 @@ schedule.gt
 dat_agg[order(price)]
 
 cat("\n# Optimal time for water desinfection\n")
-dat_agg[time <= "05:00"][order(price)][1] |> print()
+dat_agg[time <= "05:00:00"][order(price)][1] |> print()
+# dat[weekday == 7L & time == "04:00:00", summary(price_c_kWh)]
 
-dat[weekday == 7L & time == "13:00", summary(price_c_kWh)]
-
-dat_summary <- dat[, as.list(summary(price_c_kWh)), keyby = .(weekday, time)]
-dat_summary[order(Mean)]   # Sunday 13:00 3.4
-dat_summary[order(Median)] # Sunday 14:00 3.7
-dat_summary[order(Max.)]   # Monday 04:00 5.4
+dat_summary <- dat[
+  time <= "05:00:00",
+  as.list(summary(price_c_kWh)),
+  keyby = .(weekday, time)
+]
+# dat_summary[order(Mean)][1:5]   # Sunday 13:00 3.4
+# dat_summary[order(Median)][1:5] # Sunday 14:00 3.7
+# dat_summary[order(Max.)][1:5]   # Monday 04:00 5.4
 
 
 # Schedule for water heating
@@ -123,7 +126,6 @@ dat_agg[
 
 
 # Average prices
-
 schedule.price <- dcast.data.table(
   data = dat_agg,
   formula = time ~ weekday,
@@ -152,9 +154,8 @@ dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
 
 
 # Save
-
-schedule.gt |> gtsave(filename = "schedule.html")
-schedule.price.gt |> gtsave(filename = "schedule.price.html")
+schedule.gt |> gtsave(filename = "schedule.pdf")
+schedule.price.gt |> gtsave(filename = "schedule.price.png")
 
 openxlsx2::write_xlsx(
   x = list(
