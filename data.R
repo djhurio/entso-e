@@ -15,8 +15,8 @@ source("functions.R")
 start_dates <- seq(
   # from = Sys.Date() - months(1) + days(1),
   from = floor_date(Sys.Date() - months(1), unit = "month"),
-  by = "-1 month",
-  length.out = 12
+  to = as.Date("2023-03-01"),
+  by = "-1 month"
 ) |> sort()
 
 # Vector of the last days
@@ -31,7 +31,7 @@ xml_data <- purrr::map2(
 )
 
 dat <- purrr::map(.x = xml_data, .f = extract_prices) |>
-  rbindlist() |> setkey(datetime)
+  rbindlist(idcol = TRUE) |> setkey(datetime)
 
 # Original price is € / MWh
 # Convert price to cents / kWh
