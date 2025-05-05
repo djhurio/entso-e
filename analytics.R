@@ -17,7 +17,10 @@ cat("Each day hours on: ", hours_on, "\n", sep = "")
 dat <- fread(file = "data.csvy", yaml = TRUE)
 
 # Average price
-dat[, mean(price_c_kWh / 100), keyby = .(.id)] |> clipr::write_clip()
+dat[, .(
+  cena = mean(price_c_kWh / 100),
+  mēnesis = substr(last(datetime), 1, 7)
+), keyby = .(.id)]
 
 
 # By weekdays
