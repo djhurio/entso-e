@@ -9,34 +9,46 @@ library(openxlsx2)
 options("openxlsx2.numFmt" = "0.0")
 
 # Parameters
-hours_on <- 24 * 3 / 4
+hours_on <- 24
 cat("Each day hours on: ", hours_on, "\n", sep = "")
 
 
 # Data
 dat <- fread(file = "data.csvy", yaml = TRUE)
 
-# Average price
+# Average monthly price
 dat[, .(
-  cena = mean(price_c_kWh / 100),
-  mēnesis = substr(last(datetime), 1, 7)
+  mēnesis = substr(last(datetime), 1, 7),
+  cena = mean(price_c_kWh / 100)
 ), keyby = .(.id)]
 
 
+# Convert weekday to text
+dat[, weekday := as.character(weekday)]
+
 # By weekdays
-dat_agg_wdays <- dat[, .(price = mean(price_c_kWh)),
-                     keyby = .(weekday, time)]
+dat_agg_wdays <- dat[
+  ,
+  .(price = mean(price_c_kWh)),
+  keyby = .(weekday, time)
+]
 
 setorder(dat_agg_wdays, weekday, price)
 
-dat_agg_wdays[, hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
-              by = .(weekday)]
+dat_agg_wdays[
+  ,
+  hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
+  by = .(weekday)
+]
 dat_agg_wdays[, .N, keyby = .(hi)]
 
 
 # By workdays / weekends
-dat_agg_workdays <- dat[, .(price = mean(price_c_kWh)),
-                        keyby = .(workdays, time)]
+dat_agg_workdays <- dat[
+  ,
+  .(price = mean(price_c_kWh)),
+  keyby = .(workdays, time)
+]
 
 setorder(dat_agg_workdays, workdays, price)
 
@@ -47,7 +59,7 @@ dat_agg_workdays[
 ]
 dat_agg_workdays[, .N, keyby = .(hi)]
 
-dat_agg_workdays[, weekday := ifelse(workdays, 15L, 67L)]
+dat_agg_workdays[, weekday := ifelse(workdays, "1-5", "6-7")]
 dat_agg_workdays[, workdays := NULL]
 
 setorder(dat_agg_workdays, weekday, time)
@@ -56,14 +68,20 @@ dat_agg_workdays
 
 
 # All days
-dat_agg_all <- dat[, .(price = mean(price_c_kWh)),
-                   keyby = .(time)]
-dat_agg_all[, weekday := 0L]
+dat_agg_all <- dat[
+  ,
+  .(price = mean(price_c_kWh)),
+  keyby = .(time)
+]
+dat_agg_all[, weekday := "1-7"]
 
 setorder(dat_agg_all, weekday, price)
 
-dat_agg_all[, hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
-            by = .(weekday)]
+dat_agg_all[
+  ,
+  hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
+  by = .(weekday)
+]
 dat_agg_all[, .N, keyby = .(hi)]
 
 setorder(dat_agg_all, weekday, time)
@@ -75,6 +93,17 @@ dat_agg <- rbindlist(
   l = list(dat_agg_wdays, dat_agg_all, dat_agg_workdays),
   use.names = TRUE
 )
+
+dat_agg[, .N, keyby = .(weekday)]
+dat_agg[
+  ,
+  weekday := factor(weekday, c(1:5, "1-5", 6:7, "6-7", "1-7"))
+]
+dat_agg[, .N, keyby = .(weekday)]
+
+dat_agg[, .N, keyby = .(time)]
+dat_agg[, time := substr(time, 1, 5)]
+dat_agg[, .N, keyby = .(time)]
 
 schedule <- dcast.data.table(
   data = dat_agg,
@@ -97,17 +126,14 @@ schedule.gt
 dat_agg[order(price)]
 
 cat("\n# Optimal time for water desinfection\n")
-dat_agg[time <= "05:00:00"][order(price)][1] |> print()
-# dat[weekday == 7L & time == "04:00:00", summary(price_c_kWh)]
+dat_agg[order(price)][1] |> print()
 
 dat_summary <- dat[
-  time <= "05:00:00",
+  ,
   as.list(summary(price_c_kWh)),
   keyby = .(weekday, time)
 ]
-# dat_summary[order(Mean)][1:5]   # Sunday 13:00 3.4
-# dat_summary[order(Median)][1:5] # Sunday 14:00 3.7
-# dat_summary[order(Max.)][1:5]   # Monday 04:00 5.4
+dat_summary[order(Mean)][1:5]   # Sunday 13:00
 
 
 # Schedule for water heating
@@ -121,7 +147,7 @@ dat_agg[.I == .N, time_next := "00:00"]
 
 cat("\n# Schedule for water heating\n")
 dat_agg[
-  hi == "on" & weekday > 7,
+  hi == "on" & weekday %in% c("1-5", "6-7"),
   .(
     period = paste(first(time), last(time_next), sep = " - "),
     hours = .N
@@ -162,6 +188,9 @@ dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
 # Save
 schedule.gt |> gtsave(filename = "schedule.html")
 schedule.price.gt |> gtsave(filename = "schedule.price.html")
+
+schedule.gt |> gtsave(filename = "schedule.png")
+schedule.price.gt |> gtsave(filename = "schedule.price.png")
 
 openxlsx2::write_xlsx(
   x = list(
