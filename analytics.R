@@ -17,26 +17,29 @@ cat("Each day hours on: ", hours_on, "\n", sep = "")
 dat <- fread(file = "data.csvy", yaml = TRUE)
 
 # Average monthly price
-dat[, .(
-  mēnesis = substr(last(datetime), 1, 7),
-  cena = mean(price_c_kWh / 100)
-), keyby = .(.id)]
+dat[,
+  .(
+    mēnesis = substr(last(datetime), 1, 7),
+    cena = mean(price_c_kWh / 100)
+  ),
+  by = .(.id)
+][order(-.id)] |>
+  gt() |>
+  print()
 
 
 # Convert weekday to text
 dat[, weekday := as.character(weekday)]
 
 # By weekdays
-dat_agg_wdays <- dat[
-  ,
+dat_agg_wdays <- dat[,
   .(price = mean(price_c_kWh)),
   keyby = .(weekday, time)
 ]
 
 setorder(dat_agg_wdays, weekday, price)
 
-dat_agg_wdays[
-  ,
+dat_agg_wdays[,
   hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
   by = .(weekday)
 ]
@@ -44,16 +47,14 @@ dat_agg_wdays[, .N, keyby = .(hi)]
 
 
 # By workdays / weekends
-dat_agg_workdays <- dat[
-  ,
+dat_agg_workdays <- dat[,
   .(price = mean(price_c_kWh)),
   keyby = .(workdays, time)
 ]
 
 setorder(dat_agg_workdays, workdays, price)
 
-dat_agg_workdays[
-  ,
+dat_agg_workdays[,
   hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
   by = .(workdays)
 ]
@@ -66,10 +67,8 @@ setorder(dat_agg_workdays, weekday, time)
 dat_agg_workdays
 
 
-
 # All days
-dat_agg_all <- dat[
-  ,
+dat_agg_all <- dat[,
   .(price = mean(price_c_kWh)),
   keyby = .(time)
 ]
@@ -77,8 +76,7 @@ dat_agg_all[, weekday := "1-7"]
 
 setorder(dat_agg_all, weekday, price)
 
-dat_agg_all[
-  ,
+dat_agg_all[,
   hi := factor(1:.N <= hours_on, c(TRUE, FALSE), c("on", "off")),
   by = .(weekday)
 ]
@@ -95,8 +93,7 @@ dat_agg <- rbindlist(
 )
 
 dat_agg[, .N, keyby = .(weekday)]
-dat_agg[
-  ,
+dat_agg[,
   weekday := factor(weekday, c(1:5, "1-5", 6:7, "6-7", "1-7"))
 ]
 dat_agg[, .N, keyby = .(weekday)]
@@ -128,12 +125,11 @@ dat_agg[order(price)]
 cat("\n# Optimal time for water desinfection\n")
 dat_agg[order(price)][1] |> print()
 
-dat_summary <- dat[
-  ,
+dat_summary <- dat[,
   as.list(summary(price_c_kWh)),
   keyby = .(weekday, time)
 ]
-dat_summary[order(Mean)][1:5]   # Sunday 13:00
+dat_summary[order(Mean)][1:5] # Sunday 13:00
 
 
 # Schedule for water heating
@@ -153,8 +149,8 @@ dat_agg[
     hours = .N
   ),
   keyby = .(weekday, hi, time_slot)
-] |> print()
-
+] |>
+  print()
 
 
 # Average prices
@@ -182,7 +178,6 @@ dat_agg_all[, mean(price), keyby = .(hi)]
 
 dat_agg_all[, 1 - mean(price[hi == "on"]) / mean(price)]
 dat_agg_wdays[, 1 - mean(price[hi == "on"]) / mean(price)]
-
 
 
 # Save
