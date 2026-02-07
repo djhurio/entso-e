@@ -19,11 +19,11 @@ dat <- fread(file = "data.csvy", yaml = TRUE)
 # Average monthly price
 dat[,
   .(
-    mēnesis = substr(last(datetime), 1, 7),
+    mēnesis = substr(datetime[100], 1, 7),
     cena = mean(price_c_kWh / 100)
   ),
   by = .(.id)
-][order(-.id)] |>
+][order(.id)] |>
   gt() |>
   print()
 

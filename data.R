@@ -15,8 +15,9 @@ source("functions.R")
 start_dates <- seq(
   # from = Sys.Date() - months(1) + days(1),
   from = floor_date(Sys.Date() - months(1), unit = "month"),
-  to = as.Date("2023-03-01"),
-  by = "-1 month"
+  # to = as.Date("2023-03-01"),
+  by = "-1 month",
+  length.out = 12
 ) |>
   sort()
 
@@ -45,6 +46,12 @@ dat[, time := as.ITime(format(datetime, format = "%H:%M"))]
 dat[, weekday := lubridate::wday(date, week_start = 1)]
 
 dat[, workdays := weekday %in% 1:5]
+
+dat[, .N]
+(365 / 12) * 24 * (8 + 4 * 4)
+
+dat[, .N, keyby = .(year(datetime))]
+dat[, .N, keyby = .(year(datetime), month(datetime))]
 
 
 # Save
